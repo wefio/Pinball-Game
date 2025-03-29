@@ -1,0 +1,6 @@
+icon_path=resources/ball-1.png
+bg_img_path=resources/background.png
+player_img_path=resources/board-1.png
+ball_img_path=resources/ball-2.png
+sound_path=resources/sound.mp3
+font_path=resources/Siyuan.otf
