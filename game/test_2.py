@@ -14,167 +14,214 @@ import random
 import time
 import pygame
 
-# 初始化 Pygame
-pygame.init()
+class GameBase:
+    """游戏基础类，包含初始化和资源加载"""
+    # 初始化 Pygame
+    pygame.init()
 
-# 设置窗口大小
-window_width = 800
-window_height = 600
-window = pygame.display.set_mode((window_width, window_height))
-pygame.display.set_caption("弹球游戏")
+    # 窗口设置
+    WINDOW_WIDTH = 800
+    WINDOW_HEIGHT = 600
+    window = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+    pygame.display.set_caption("弹球游戏")
 
-# 加载字体
-font_path = "resources/Siyuan.otf"
-font = pygame.font.Font(font_path, 36)
-font_big = pygame.font.Font(font_path, 50)
-font_small = pygame.font.Font(font_path, 40)
+    # 颜色定义
+    WHITE = (255, 255, 255)
+    BLACK = (0, 0, 0)
+    
+    # 加载字体
+    FONT_PATH = "resources/Siyuan.otf"
+    font = pygame.font.Font(FONT_PATH, 36)
+    font_large = pygame.font.Font(FONT_PATH, 50)
+    font_medium = pygame.font.Font(FONT_PATH, 40)
 
-# 加载背景、板、球和音效
-bg_img = pygame.image.load("resources/background.png")
-player_img = pygame.image.load("resources/board-1.png")
-ball_img = pygame.image.load("resources/ball-2.png")
-sound = pygame.mixer.Sound("resources/sound.mp3")
-
-# 颜色定义
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
+    # 加载游戏资源
+    background_image = pygame.image.load("resources/background.png")
+    paddle_image = pygame.image.load("resources/board-1.png")
+    ball_image = pygame.image.load("resources/ball-2.png")
+    collision_sound = pygame.mixer.Sound("resources/sound-1.mp3")
+    background_music = pygame.mixer.Sound("resources/sound.mp3")
 
 
 # 游戏配置信息
-class GameConfig:
+class GameConfig(GameBase):
+    # 默认配置
+    BALL_RADIUS = 25
+    PADDLE_WIDTH = 100
+    PADDLE_HEIGHT = 30
+    PADDLE_SPEED = 5
+    INITIAL_BALL_SPEED_Y = -2
+
     def __init__(self):
-        self.ball_x = window_width // 2
-        self.ball_y = window_height - 63
-        self.ball_radius = 25
+        self.ball_x = self.WINDOW_WIDTH // 2
+        self.ball_y = self.WINDOW_HEIGHT - 63
         self.ball_speed_x = random.randint(-5, 5)
-        self.ball_speed_y = -2
-        self.board_width = 100
-        self.board_height = 30
-        self.board_x = window_width // 2 - self.board_width // 2
-        self.board_y = window_height - self.board_height - 10
-        self.board_speed = 5
-        self.score = 0
+        self.ball_speed_y = self.INITIAL_BALL_SPEED_Y
+        self.paddle_x = (self.WINDOW_WIDTH - self.PADDLE_WIDTH) // 2
+        self.paddle_y = self.WINDOW_HEIGHT - self.PADDLE_HEIGHT - 10
+        self.score = -1
         self.start_time = time.time()
-        self.run = True
+        self.running = True
 
     def update_game_config(self):
-        # 更新球的位置
         self.ball_x += self.ball_speed_x
         self.ball_y += self.ball_speed_y
 
-        # 球与窗口边界碰撞检测
-        if self.ball_x <= self.ball_radius or self.ball_x >= window_width - self.ball_radius:
-            # 如果球的横坐标超出窗口左右边界，反向改变速度，让球反弹
+        # 边界碰撞检测
+        if self.ball_x <= self.BALL_RADIUS or self.ball_x >= self.WINDOW_WIDTH - self.BALL_RADIUS:
             self.ball_speed_x = -self.ball_speed_x
-
-        if self.ball_y <= self.ball_radius or self.ball_y >= window_height - self.ball_radius:
-            # 如果球的纵坐标超出窗口上下边界，反向改变速度，让球反弹
+        if self.ball_y <= self.BALL_RADIUS:
             self.ball_speed_y = -self.ball_speed_y
+        elif self.ball_y >= self.WINDOW_HEIGHT - self.BALL_RADIUS:
+            self.running = False
 
-        # 如果球碰到窗口边界，游戏结束
-        if self.ball_y >= window_height - self.ball_radius:
-            # 如果球的纵坐标超出窗口下边界，游戏结束
-            self.run = False
-
-        # 球与板碰撞检测
-        if self.ball_y >= self.board_y - self.ball_radius and self.board_x <= self.ball_x <= self.board_x + self.board_width:
-            self.ball_speed_y = -abs(self.ball_speed_y)  # 碰撞后速度取绝对值
+        # 球与挡板碰撞检测
+        if (self.ball_y >= self.paddle_y - self.BALL_RADIUS and 
+            self.paddle_x <= self.ball_x <= self.paddle_x + self.PADDLE_WIDTH):
+            self.ball_speed_y = -abs(self.ball_speed_y)
             self.score += 1
-        sound.play()
+            self.collision_sound.play()
 
     def get_game_time(self):
-        elapsed_time = int(time.time() - self.start_time)
-        hours = elapsed_time // 3600
-        minutes = (elapsed_time % 3600) // 60
-        seconds = elapsed_time % 60
-        return hours, minutes, seconds
+        elapsed = int(time.time() - self.start_time)
+        return elapsed // 3600, (elapsed % 3600) // 60, elapsed % 60
 
-
-# 游戏循环
-def game_loop():
-    game_config = GameConfig()
-    clock = pygame.time.Clock()
-
-    while game_config.run:
-        for events in pygame.event.get():
-            if events.type == pygame.QUIT:
-                game_config.run = False
-
+class GameLoop(GameBase):
+    """游戏循环类，处理游戏事件和渲染"""
+    def handle_events(self, config):
+        """处理游戏事件"""
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                config.running = False
+        
+        # 处理键盘输入
         keys = pygame.key.get_pressed()
-        if keys[pygame.K_LEFT] and game_config.board_x > 0:
-            game_config.board_x -= game_config.board_speed
-        if keys[pygame.K_RIGHT] and game_config.board_x < window_width - game_config.board_width:
-            game_config.board_x += game_config.board_speed
-
-        game_config.update_game_config()
-
-        window.blit(bg_img, (0, 0))
-        window.blit(ball_img,(game_config.ball_x - game_config.ball_radius, game_config.ball_y - game_config.ball_radius))
-        window.blit(player_img, (game_config.board_x, game_config.board_y))
-
+        if keys[pygame.K_LEFT] and config.paddle_x > 0:
+            config.paddle_x -= config.PADDLE_SPEED
+        if keys[pygame.K_RIGHT] and config.paddle_x < self.WINDOW_WIDTH - config.PADDLE_WIDTH:
+            config.paddle_x += config.PADDLE_SPEED
+            
+        # 处理鼠标控制
+        mouse_x, _ = pygame.mouse.get_pos()
+        # 确保挡板不会超出窗口边界
+        half_width = config.PADDLE_WIDTH // 2
+        if mouse_x - half_width > 0 and mouse_x + half_width < self.WINDOW_WIDTH:
+            config.paddle_x = mouse_x - half_width
+    
+    def render_game(self, config):
+        """渲染游戏画面"""
+        # 绘制背景、球和挡板
+        self.window.blit(self.background_image, (0, 0))
+        self.window.blit(self.ball_image, (config.ball_x - config.BALL_RADIUS, config.ball_y - config.BALL_RADIUS))
+        self.window.blit(self.paddle_image, (config.paddle_x, config.paddle_y))
+        
         # 显示得分和游戏时间
-        score_text = font.render("得分: " + str(game_config.score - 1), True, WHITE)
-        hours, minutes, seconds = game_config.get_game_time()
-        time_text = font.render("时间: {:02d}:{:02d}:{:02d}".format(hours, minutes, seconds), True, WHITE)
-        window.blit(score_text, (10, 10))
-        window.blit(time_text, (10, 50))
-
+        hours, minutes, seconds = config.get_game_time()
+        self.window.blit(self.font.render(f"得分: {config.score}", True, self.WHITE), (10, 10))
+        self.window.blit(self.font.render(f"时间: {hours:02d}:{minutes:02d}:{seconds:02d}", True, self.WHITE), (10, 50))
+        
         pygame.display.update()
+    
+    def game_loop(self):
+        """游戏主循环"""
+        config = GameConfig()
+        clock = pygame.time.Clock()
+        
+        # 播放背景音乐
+        self.background_music.play(-1)
+        
+        # 游戏主循环
+        while config.running:
+            self.handle_events(config)
+            config.update_game_config()
+            self.render_game(config)
+            clock.tick(60)
+        
+        # 游戏结束，显示结果并停止音乐
+        hours, minutes, seconds = config.get_game_time()
+        print(f"游戏结束！恭喜您浪费了人生中的 {hours} 小时 {minutes} 分钟 {seconds} 秒，您的得分是: {config.score}")
+        self.background_music.stop()
 
-        clock.tick(60)
 
-    print("游戏结束！恭喜您浪费了人生中的", hours, "小时", minutes, "分钟", seconds, "秒，" "您的得分是:",
-          game_config.score)
-
-    pygame.quit()
-
-
-# 设置选项
-options = ["开始游戏", "退出游戏"]
-option = 0
-
-# 设置分裂效果的初始位置
-split_y = 0
-
-# 游戏主循环
-running = True
-while running:
-    window.fill(BLACK)  # 填充背景色
-    for i, text in enumerate(options):
-        if i == option:
-            img = font_big.render("> " + text, True, (255, 255, 255))
-        else:
-            img = font_small.render("   " + text, True, (255, 255, 255))
-        window.blit(img, (300, 200 + i * 60))
-
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_UP:
-                option = (option - 1) % len(options)
-            elif event.key == pygame.K_DOWN:
-                option = (option + 1) % len(options)
-            elif event.key == pygame.K_RETURN:
-                if option == 0:
-                    game_loop()
-                elif option == 1:
-                    running = False
-        if event.type == pygame.MOUSEMOTION:
+class GameMenu(GameLoop, GameBase):
+    """游戏菜单类，处理菜单界面和交互"""
+    # 菜单配置
+    MENU_X = 300
+    MENU_WIDTH = 200
+    MENU_ITEM_HEIGHT = 60
+    MENU_START_Y = 200
+    
+    def render_menu(self, options, selected_index):
+        """渲染菜单界面"""
+        self.window.fill(self.BLACK)  # 填充背景色
+        for i, text in enumerate(options):
+            if i == selected_index:
+                text_surface = self.font_large.render("> " + text, True, self.WHITE)
+            else:
+                text_surface = self.font_medium.render("   " + text, True, self.WHITE)
+            self.window.blit(text_surface, (self.MENU_X, self.MENU_START_Y + i * self.MENU_ITEM_HEIGHT))
+        pygame.display.update()
+    
+    def handle_menu_events(self, options, selected_index, running):
+        """处理菜单事件"""
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return selected_index, False
+            
+            # 键盘控制
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_UP:
+                    selected_index = (selected_index - 1) % len(options)
+                elif event.key == pygame.K_DOWN:
+                    selected_index = (selected_index + 1) % len(options)
+                elif event.key == pygame.K_RETURN:
+                    self.process_menu_selection(selected_index)
+                    if selected_index == 1:  # 退出游戏
+                        return selected_index, False
+            
+            # 鼠标控制
             x, y = pygame.mouse.get_pos()
-            if 300 < x < 500:
-                if 200 < y < 260:
-                    option = 0
-                elif 260 < y < 320:
-                    option = 1
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            x, y = pygame.mouse.get_pos()
-            if 300 < x < 500:
-                if 200 < y < 260:
-                    if option == 0:
-                        game_loop()
-                elif option == 1:
-                    running = False
-    pygame.display.update()
-# 退出pygame
-pygame.quit()
+            if self.MENU_X < x < self.MENU_X + self.MENU_WIDTH:
+                # 鼠标移动高亮选项
+                if event.type == pygame.MOUSEMOTION:
+                    for i in range(len(options)):
+                        item_y = self.MENU_START_Y + i * self.MENU_ITEM_HEIGHT
+                        if item_y < y < item_y + self.MENU_ITEM_HEIGHT:
+                            selected_index = i
+                
+                # 鼠标点击选择
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    for i in range(len(options)):
+                        item_y = self.MENU_START_Y + i * self.MENU_ITEM_HEIGHT
+                        if item_y < y < item_y + self.MENU_ITEM_HEIGHT:
+                            self.process_menu_selection(i)
+                            if i == 1:  # 退出游戏
+                                return i, False
+        
+        return selected_index, running
+    
+    def process_menu_selection(self, selected_index):
+        """处理菜单选择"""
+        if selected_index == 0:  # 开始游戏
+            self.game_loop()
+    
+    def __init__(self):
+        """初始化游戏菜单"""
+        # 设置菜单选项
+        options = ["开始游戏", "退出游戏"]
+        selected_index = 0
+        
+        # 菜单主循环
+        running = True
+        while running:
+            # 渲染菜单
+            self.render_menu(options, selected_index)
+            
+            # 处理菜单事件
+            selected_index, running = self.handle_menu_events(options, selected_index, running)
+        
+        # 退出pygame
+        pygame.quit()
+
+if __name__ == "__main__":
+    GameMenu()
